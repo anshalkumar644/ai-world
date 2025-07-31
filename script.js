@@ -1,497 +1,426 @@
-// script.js
-const userInput = document.getElementById('user-input');
-const sendButton = document.getElementById('send-button');
-const micButton = document.getElementById('mic-button');
-const chatDisplay = document.getElementById('chat-display'); // Added chatDisplay element
-
-// Splash screen elements
-const splashScreen = document.getElementById('splash-screen');
-const mainInterface = document.getElementById('main-interface');
-const splashText = document.getElementById('splash-text');
-const loader = document.querySelector('.loader');
-const startButton = document.getElementById('start-button'); // New Start Button element
-
-// AI Face elements
-const aiFaceContainer = document.getElementById('ai-face-container');
-const aiFaceImage = document.getElementById('ai-face-image');
-const statusTextElement = document.getElementById('status-text');
-
-// Menu bar elements
-const dropbtn = document.querySelector('.dropbtn'); // Get the dropdown button
-const dropdownContent = document.querySelector('.dropdown-content'); // Get the dropdown content
-const dropdownParent = document.querySelector('.dropdown'); // Get the parent .dropdown div
-const homeLink = document.getElementById('home-link');
-const aboutLink = document.getElementById('about-link');
-const contactLink = document.getElementById('contact-link');
-const helpLink = document.getElementById('help-link');
-
-
-// Set the AI face image source to the new URL provided by the user
-aiFaceImage.src = 'https://i.ibb.co/wt1KjSF/1000097633-removebg-preview.png';
-aiFaceImage.onerror = () => {
-    console.error("Failed to load AI face image from provided URL. Using generic placeholder.");
-    aiFaceImage.src = 'https://placehold.co/250x250/374151/E2E8F0?text=AI+Friend+Fallback';
-};
-
-
-let lastQuestionAsked = '';
-let chatHistory = [];
-let selectedMaleVoice = null;
-let voicesLoaded = false; // Flag to check if voices are loaded
-
-// Speech Recognition setup
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition;
-let isListening = false;
-let finalTranscriptAccumulator = '';
-let silenceTimeout;
-
-// Speech Synthesis (TTS) setup
-let currentUtterance = null;
-let splashTransitionTimeout = null;
-let transitionInitiated = false;
-
-// Function to select a male voice for Hindi (hi-IN)
-function selectMaleVoice() {
-    const voices = speechSynthesis.getVoices();
-    if (voices.length === 0) {
-        console.log("No voices available yet. Waiting for 'voiceschanged' event.");
-        return; // Exit if no voices are loaded yet
-    }
-    voicesLoaded = true; // Set flag once voices are available
-    console.log("Available voices:", voices.map(v => ({ name: v.name, lang: v.lang, default: v.default })));
-
-    // Try to find a male voice for hi-IN
-    selectedMaleVoice = voices.find(voice =>
-        voice.lang === 'hi-IN' && (voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('?????'))
-    );
-
-    // Fallback to any hi-IN voice if no specific male voice is found
-    if (!selectedMaleVoice) {
-        selectedMaleVoice = voices.find(voice => voice.lang === 'hi-IN');
-    }
-
-    // Fallback to any available male voice if no hi-IN voice is found
-    if (!selectedMaleVoice) {
-        selectedMaleVoice = voices.find(voice => voice.default && (voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('?????')));
-    }
-
-    // Final fallback to default voice if no male voice is explicitly found
-    if (!selectedMaleVoice) {
-        selectedMaleVoice = voices.find(voice => voice.default);
-    }
-
-    if (selectedMaleVoice) {
-        console.log("Selected AI Voice:", selectedMaleVoice.name, selectedMaleVoice.lang);
-    } else {
-        console.warn("No suitable male voice found for Hindi. Using default system voice.");
-    }
-
-    // Enable start button once voices are loaded (or after a short delay)
-    startButton.disabled = false;
+/* style.css */
+body {
+    font-family: 'Inter', sans-serif;
+    background: radial-gradient(circle at center, #1a202c 0%, #0f172a 100%); /* Dark, futuristic radial gradient */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #e2e8f0;
 }
 
-// Listen for voiceschanged event to ensure voices are loaded
-speechSynthesis.onvoiceschanged = selectMaleVoice;
-// Call immediately in case voices are already loaded
-selectMaleVoice();
+/* Splash Screen Styles */
+#splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #1a202c 0%, #0f172a 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 700;
+    text-align: center;
+    z-index: 1000;
+    opacity: 1;
+    transition: opacity 1.5s ease-out; /* Increased transition for smoother fade */
+}
 
+#splash-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
 
-// System instruction for the AI's persona and rules
-const systemInstruction = {
-    role: "user",
-    parts: [{
-        text: "?? ?? BPSC ????? ?? ??? ?? AI ????? ???? ???? ??? ???? ????? ??? ???? ??????? ?? ???????? ?? ????? ???? ??? ??? ????? '????? ?????? ????' ???, ?? ???? BPSC ?? ??????? ??????? ????? ?? ?????? ????? ???? ??? ????? ???? ??, ?? ???? ????? ????? ?? ?? ???? ??? ?? ?? ???, ?? ??? ???? ?? ??? ???? ?? ????? ??? ????? ???? ?????? ??? ???? ?? ?????? ?? ???????? (???? **????**) ?? ????? ? ????? ??? ?? ?????? ????? ???, ?? ?????? ?? ?????? ??? ?? ?????? ???? ?? ???? ?????? ?? ??? ????? ?????"
-    }]
-};
+#splash-text {
+    opacity: 0;
+    transform: scale(0.8);
+    animation: fadeInScale 2s forwards ease-out;
+    text-shadow: 0 4px 12px rgba(79, 70, 229, 0.6);
+    margin-bottom: 2rem;
+}
 
-// Function to handle splash screen transition to main interface
-function transitionToMainInterface() {
-    if (transitionInitiated) {
-        return;
-    }
-    transitionInitiated = true;
+@keyframes fadeInScale {
+    0% { opacity: 0; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+}
 
-    if (splashTransitionTimeout) {
-        clearTimeout(splashTransitionTimeout);
-        splashTransitionTimeout = null;
-    }
+/* Loading Animation Styles */
+.loader {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-top: 5px solid #4f46e5;
+    border-radius: 50%;
+    animation: spin 1s linear infinite, fadeInLoader 0.5s forwards;
+    opacity: 0;
+    animation-delay: 2.2s;
+    animation-fill-mode: forwards;
+}
 
-    splashScreen.classList.add('fade-out');
-    setTimeout(() => {
-        splashScreen.style.display = 'none';
-        mainInterface.classList.add('visible');
-        userInput.disabled = false; // Ensure input is enabled when main interface becomes visible
-        sendButton.disabled = false; // Ensure send button is enabled
-        // Auto-start mic only if SpeechRecognition is supported
-        if (SpeechRecognition && recognition) {
-            recognition.start();
-        } else {
-            speak("????? ????, ???? ???????? ????? ?????????? ?? ?????? ???? ???? ??? ?? ???? ???? ?????? ?? ???? ????");
-        }
-        userInput.focus();
-    }, 1000);
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeInLoader {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+/* Start Button on Splash Screen */
+#start-button {
+    background-color: #4f46e5; /* Indigo */
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 0.75rem;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.4);
+    opacity: 0; /* Initially hidden */
+    animation: fadeInButton 1s forwards;
+    animation-delay: 3s; /* Appear after text and loader */
+}
+
+#start-button:hover {
+    background-color: #6366f1;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(79, 70, 229, 0.6);
+}
+
+#start-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
+}
+
+@keyframes fadeInButton {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }
 
 
-// Function to update AI's visual state (now uses glow effects on image container)
-function updateAiState(state) {
-    aiFaceContainer.classList.remove('listening', 'thinking', 'speaking');
-    statusTextElement.textContent = '';
-
-    switch (state) {
-        case 'idle':
-            // Default state, no special classes
-            break;
-        case 'listening':
-            aiFaceContainer.classList.add('listening');
-            statusTextElement.textContent = '??? ??? ???...';
-            break;
-        case 'thinking':
-            aiFaceContainer.classList.add('thinking');
-            statusTextElement.textContent = '??? ??? ???...';
-            break;
-        case 'speaking':
-            aiFaceContainer.classList.add('speaking');
-            statusTextElement.textContent = '??? ??? ???...';
-            break;
-    }
+/* Main Interface Container Styles */
+#main-interface {
+    display: flex; /* Use flexbox for layout */
+    flex-direction: column; /* Stack navbar, then chat/main content */
+    height: 100vh; /* Ensure main interface takes full viewport height */
+    width: 100%; /* Ensure main interface takes full viewport width */
+    padding: 1rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
+    position: relative; /* For absolute positioning of start-chat-container */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
 }
 
-if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.lang = 'hi-IN';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-
-    const SILENCE_TIMEOUT_MS = 3000;
-
-    function startSilenceTimeout() {
-        clearTimeout(silenceTimeout);
-        silenceTimeout = setTimeout(() => {
-            if (isListening) {
-                recognition.stop();
-            }
-        }, SILENCE_TIMEOUT_MS);
-    }
-
-    recognition.onstart = () => {
-        isListening = true;
-        micButton.classList.add('recording');
-        userInput.placeholder = "?????...";
-        sendButton.disabled = true;
-        userInput.disabled = false; // Ensure input is enabled when recognition starts
-        finalTranscriptAccumulator = '';
-        updateAiState('listening'); // AI shows listening state
-        startSilenceTimeout();
-    };
-
-    recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let currentFinalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                currentFinalTranscript += transcript;
-            } else {
-                interimTranscript += transcript;
-            }
-        }
-
-        userInput.value = finalTranscriptAccumulator + interimTranscript;
-
-        if (currentFinalTranscript) {
-            finalTranscriptAccumulator += currentFinalTranscript;
-            userInput.value = finalTranscriptAccumulator;
-            startSilenceTimeout();
-        }
-    };
-
-    recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        let errorMessage = "????? ????, ????? ??????? ??? ??? ?????? ????";
-        if (event.error === 'not-allowed') {
-            errorMessage = "??????????? ?? ????? ???? ?? ?????? ???? ?? ??? ????? ???????? ???????? ??? ?????? ????";
-        } else if (event.error === 'no-speech') {
-            errorMessage = "??? ????? ???? ???? ??? ????? ??? ?? ?????? ?????";
-        }
-        if (mainInterface.classList.contains('visible')) {
-            speak(errorMessage);
-        }
-
-        isListening = false;
-        micButton.classList.remove('recording');
-        userInput.placeholder = "???? ????? ???? ????? ?? ??????????? ?? ?????...";
-        sendButton.disabled = false;
-        userInput.disabled = false; // Ensure input is enabled on error
-        clearTimeout(silenceTimeout);
-        updateAiState('idle'); // Reset AI state
-    };
-
-    recognition.onend = () => {
-        isListening = false;
-        micButton.classList.remove('recording');
-        userInput.placeholder = "???? ????? ???? ????? ?? ??????????? ?? ?????...";
-        sendButton.disabled = false;
-        userInput.disabled = false; // Ensure input is enabled when recognition ends
-        clearTimeout(silenceTimeout);
-
-        if (finalTranscriptAccumulator.trim() !== '') {
-            userInput.value = finalTranscriptAccumulator;
-            sendMessage();
-        } else {
-            userInput.value = '';
-            updateAiState('idle'); // Back to idle if nothing was said
-        }
-    };
-
-    micButton.addEventListener('click', () => {
-        if (isListening) {
-            recognition.stop();
-        } else {
-            recognition.start();
-        }
-    });
-    userInput.disabled = true; // Initial state: disabled
-    sendButton.disabled = true; // Initial state: disabled
-
-} else {
-    micButton.style.display = 'none';
-    userInput.placeholder = "???? ????? ???? ?????...";
-    userInput.disabled = false; // Enabled if SR not supported
-    sendButton.disabled = false; // Enabled if SR not supported
+#main-interface.visible {
+    opacity: 1;
+    visibility: visible;
 }
 
-// Function to display text in the chat box
-function displayChatMessage(text, sender) {
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('chat-message', sender === 'ai' ? 'ai' : 'user');
-    messageDiv.textContent = text;
-    chatDisplay.appendChild(messageDiv);
-    chatDisplay.scrollTop = chatDisplay.scrollHeight;
+/* Navbar Styles */
+.navbar {
+    width: 100%;
+    background-color: #1f2937; /* Darker background for navbar */
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    border: 1px solid #4f46e5;
+    margin-bottom: 1rem; /* Space below navbar */
+    flex-shrink: 0; /* Prevent navbar from shrinking */
+}
+
+.navbar-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+/* Dropdown Button */
+.dropbtn {
+    background-color: #4f46e5;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
+}
+
+.dropbtn:hover {
+    background-color: #6366f1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.5);
+}
+
+.dropbtn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+
+.dropdown-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: white;
+}
+
+/* Dropdown Content - ANIMATED */
+.dropdown {
+    position: relative; /* For positioning dropdown-content */
+}
+
+.dropdown-content {
+    position: absolute;
+    background-color: #1f2937;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 10; /* Ensure it's above other content */
+    border-radius: 0.75rem;
+    border: 1px solid #4f46e5;
+    top: calc(100% + 5px); /* Position below the button */
+    left: 0; /* Align with the button */
+    overflow: hidden; /* For smooth max-height animation */
+    max-height: 0; /* Initial state for animation */
+    opacity: 0; /* Initial state for fade */
+    transition: max-height 0.5s ease-out, opacity 0.5s ease-out; /* Animation properties */
+    pointer-events: none; /* Prevent interaction when hidden */
+}
+
+.dropdown-content a, .dropdown-content div {
+    color: #e2e8f0;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    transition: background-color 0.2s;
+    border-radius: 0.5rem;
+}
+
+.dropdown-content a:hover {
+    background-color: #4f46e5;
+}
+
+/* Show the dropdown menu on click - ANIMATED */
+.dropdown.active .dropdown-content {
+    max-height: 300px; /* Sufficiently large height to show all content */
+    opacity: 1;
+    pointer-events: auto; /* Allow interaction when visible */
+}
+
+/* Content area below navbar */
+.content-area-wrapper {
+    display: flex;
+    flex-grow: 1; /* Takes all available vertical space in #main-interface */
+    width: 100%; /* Takes full width of #main-interface */
+    flex-direction: row; /* Chat and main content side-by-side */
+    gap: 1rem; /* Add gap between chat and main content */
+}
+
+/* Chat Display Box Styles */
+#chat-display {
+    width: 25%; /* Changed from 30% to 25% for 1/4 size */
+    background-color: #1f2937;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* Enable scrolling for chat history */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    border: 1px solid #4f46e5;
+    flex-grow: 1; /* Allow it to grow vertically within content-area-wrapper */
+    min-height: 200px; /* Ensure a minimum height for visibility */
+    height: 100%; /* Explicitly take 100% of parent's height */
+}
+
+#main-interface.visible #chat-display {
+    transform: translateX(0); /* Slide into view when main interface is visible */
+}
+
+.chat-message {
+    background-color: #374151;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    word-wrap: break-word; /* Ensure long words wrap */
+}
+.chat-message.ai {
+    background-color: #4f46e5; /* AI messages in indigo */
+    align-self: flex-start; /* Align AI messages to the left */
+}
+.chat-message.user {
+    background-color: #6b7280; /* User messages in gray */
+    align-self: flex-end; /* Align user messages to the right */
 }
 
 
-// Function to speak text
-function speak(text) {
-    if (currentUtterance && speechSynthesis.speaking) {
-        speechSynthesis.cancel();
-    }
-
-    currentUtterance = new SpeechSynthesisUtterance(text);
-    currentUtterance.lang = 'hi-IN'; // Still set language for better matching
-    if (selectedMaleVoice) {
-        currentUtterance.voice = selectedMaleVoice; // Set the selected male voice
-    }
-    currentUtterance.onstart = () => {
-        updateAiState('speaking'); // AI shows speaking state
-    };
-    currentUtterance.onend = () => {
-        updateAiState('idle'); // Back to idle after speaking
-        // After AI finishes speaking, restart recognition if supported
-        if (SpeechRecognition && recognition) {
-            recognition.start();
-        }
-    };
-    currentUtterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event.error);
-        updateAiState('idle'); // Back to idle on error
-        // Even on error, try to restart recognition
-        if (SpeechRecognition && recognition) {
-            recognition.start();
-        }
-    };
-    speechSynthesis.speak(currentUtterance);
+/* Main Content Area (AI Face and Input) */
+.main-content-area {
+    flex-grow: 1; /* Take remaining width in content-area-wrapper */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
+    padding: 1rem;
+    min-width: 300px; /* Ensure a minimum width for visibility */
+    height: 100%; /* Explicitly take 100% of parent's height */
 }
 
-// Function to send message to AI
-async function sendMessage() {
-    const userText = userInput.value.trim();
-    if (userText === '') return;
-
-    displayChatMessage(userText, 'user'); // Display user's message in chat
-    userInput.value = '';
-
-    // Stop recognition when user sends a message (either by typing or after voice input is processed)
-    if (isListening) {
-        recognition.stop(); // This will trigger recognition.onend, which then calls sendMessage
-    }
-    
-    updateAiState('thinking'); // AI shows thinking state
-
-    let currentConversationParts = [];
-
-    const isLikelyAnswer = lastQuestionAsked && userText.length < 50 &&
-                           !userText.toLowerCase().includes('?????? ????') &&
-                           !userText.toLowerCase().includes('???? ???o') &&
-                           !userText.toLowerCase().includes('????? ?????? ????');
-
-    if (isLikelyAnswer) {
-        currentConversationParts.push({ text: `????? ??????: "${lastQuestionAsked}"? ????? ?? ????: "${userText}"? ????? ?? ???? ?? ????????? ???? ?? ??? ?? ??? ?????? ????? ?? ??? ?? ?????? ???? ?????` });
-    } else {
-        currentConversationParts.push({ text: userText });
-    }
-
-    chatHistory.push({ role: "user", parts: currentConversationParts });
-
-    const payload = {
-        contents: [systemInstruction, ...chatHistory]
-    };
-
-    try {
-        const apiKey = "AIzaSyC1N0DW220j1CR7sdBVocTTvCTKaFo_g7o"; // ???? API ????? ???? ????? ?? ??
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        let aiResponseText = "????? ????, ???? ???? ?????? ?? ????? ??? ?????? ????";
-
-        if (result.candidates && result.candidates.length > 0 &&
-            result.candidates[0].content && result.candidates[0].content.parts &&
-            result.candidates[0].content.parts.length > 0) {
-            aiResponseText = result.candidates[0].content.parts[0].text;
-            aiResponseText = aiResponseText.replace(/\*\*/g, '');
-
-            if (aiResponseText.includes('?') &&
-                !aiResponseText.includes('??? ????!') &&
-                !aiResponseText.includes('??? ??')) {
-                lastQuestionAsked = aiResponseText;
-            } else {
-                lastQuestionAsked = '';
-            }
-
-        }
-
-        displayChatMessage(aiResponseText, 'ai'); // Display AI's message in chat
-        speak(aiResponseText);
-        chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
-
-    } catch (error) {
-        console.error("Error fetching from Gemini API:", error);
-        const errorMessage = "????? ????, AI ?? ?????? ???? ??? ??? ?????? ? ?? ??? ????? ??? ??? ??? ???? ?????? ?????";
-        displayChatMessage(errorMessage, 'ai'); // Display error in chat
-        speak(errorMessage);
-        chatHistory.push({ role: "model", parts: [{ text: errorMessage }] });
-    } finally {
-        // AI state will be set to 'idle' by speak().onend or onerror
-        // Mic will be restarted by speak().onend or onerror
-    }
+/* AI Face Container Styles */
+.ai-face-container {
+    position: relative;
+    width: 250px; /* Size for the image */
+    height: 250px;
+    border-radius: 50%; /* Circular mask for the image */
+    overflow: hidden; /* Hide parts of image outside the circle */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #1a202c; /* Background behind image if it's not perfectly circular */
+    box-shadow: 0 0 40px rgba(79, 70, 229, 0.6), inset 0 0 20px rgba(79, 70, 229, 0.4); /* Inner and outer glow */
+    border: 2px solid #4f46e5; /* Outline */
+    transition: all 0.3s ease-in-out;
+    margin-bottom: 2rem; /* Space below face */
 }
 
-// Event listeners for text input
-sendButton.addEventListener('click', sendMessage);
-userInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && !sendButton.disabled) {
-        sendMessage();
+.ai-face-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Cover the container, crop if necessary */
+    object-position: center top; /* Adjust to focus on the face */
+    border-radius: 50%; /* Ensure image itself is circular within container */
+}
+
+/* Animation for AI Face based on state */
+.ai-face-container.listening {
+    box-shadow: 0 0 60px rgba(239, 68, 68, 0.8), inset 0 0 30px rgba(239, 68, 68, 0.6); /* Red glow when listening */
+    border-color: #ef4444;
+}
+
+.ai-face-container.thinking {
+    animation: pulseGlow 1.5s infinite alternate; /* Pulsating glow when thinking */
+}
+
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 40px rgba(79, 70, 229, 0.6), inset 0 0 20px rgba(79, 70, 229, 0.4); }
+    100% { box-shadow: 0 0 60px rgba(79, 70, 229, 0.8), inset 0 0 30px rgba(79, 70, 229, 0.6); }
+}
+
+.ai-face-container.speaking {
+    animation: speakingGlow 0.8s infinite alternate; /* Subtle pulsating glow when speaking */
+}
+
+@keyframes speakingGlow {
+    0% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6), inset 0 0 20px rgba(99, 102, 241, 0.4); }
+    100% { box-shadow: 0 0 50px rgba(99, 102, 241, 0.8), inset 0 0 25px rgba(99, 102, 241, 0.6); }
+}
+
+.status-text {
+    color: #9ca3af;
+    font-size: 1rem;
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.chat-input-area {
+    display: flex;
+    padding: 1.5rem;
+    gap: 0.75rem;
+    align-items: center;
+    width: 100%;
+    max-width: 500px; /* Limit input width */
+    margin-top: 2rem; /* Space above input area */
+}
+.chat-input {
+    flex-grow: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid #4f46e5;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    outline: none;
+    background-color: #2d3748;
+    color: #e2e8f0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.chat-input::placeholder {
+    color: #9ca3af;
+}
+.chat-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4);
+}
+.send-button, .mic-button {
+    background-color: #4f46e5;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
+}
+.mic-button {
+    padding: 0.75rem;
+}
+.send-button:hover, .mic-button:hover {
+    background-color: #6366f1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.5);
+}
+.send-button:active, .mic-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+.mic-button.recording {
+    background-color: #ef4444;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .content-area-wrapper {
+        flex-direction: column; /* Stack chat and main content vertically */
+        gap: 0; /* Remove gap when stacked */
     }
-});
-
-// Dropdown toggle logic
-dropbtn.addEventListener('click', function(event) {
-    event.stopPropagation(); // Prevent the click from bubbling up to the window
-    dropdownParent.classList.toggle('active'); // Toggle 'active' class on the parent dropdown
-});
-
-// Close the dropdown if the user clicks outside of it
-window.addEventListener('click', function(event) {
-    // Check if the clicked element is not the dropdown button itself
-    // AND if the clicked element is not inside the dropdown content
-    if (!event.target.matches('.dropbtn') && !event.target.closest('.dropdown-content')) {
-        if (dropdownParent.classList.contains('active')) {
-            dropdownParent.classList.remove('active');
-        }
+    #chat-display {
+        width: 100%; /* Full width on small screens */
+        margin-right: 0;
+        margin-bottom: 1rem; /* Space below chat box */
+        max-height: 25vh; /* Limit height on mobile */
+        height: auto; /* Let content define height up to max-height */
     }
-});
-
-// Dropdown menu item click handlers
-homeLink.addEventListener('click', (event) => {
-    event.preventDefault(); // Prevent default link behavior
-    dropdownParent.classList.remove('active'); // Close dropdown
-    displayChatMessage("?? ??? ??? ?? ????", 'ai');
-    speak("?? ??? ??? ?? ????");
-});
-
-aboutLink.addEventListener('click', (event) => {
-    event.preventDefault(); // Prevent default link behavior
-    dropdownParent.classList.remove('active'); // Close dropdown
-    const aboutText = "??????! ???? ??? ???? ????? ??? ???? ???? ????? ?????? ????? ??? ??? ??? ?? ??????? ??????? AI ??? ?? ??? ???? ????? ??? ?????? ?? ???? ???? ??? ?? ???? ???????? ???? ???, ?? ?? ???? ?? ??????? ??? ????? ?? ??? ?? ???? ???? ?? ???? ??? ???? ?????? ??? ???? ????";
-    displayChatMessage(aboutText, 'ai');
-    speak(aboutText);
-});
-
-contactLink.addEventListener('click', (event) => {
-    event.preventDefault(); // Prevent default link behavior
-    dropdownParent.classList.remove('active'); // Close dropdown
-    const email = 'kumaranshak481@gmail.com';
-    const subject = 'AI World App ?? ??????';
-    const body = '?????? ???? ?????,\n\n??? ???? AI World App ?? ???? ??? ???? ?????? ???? ????? ????\n\n???????,';
-    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(mailtoLink, '_blank'); // Open email client in a new tab
-    displayChatMessage(`?? ???? ??? ???? ???: ${email}`, 'ai');
-});
-
-helpLink.addEventListener('click', (event) => {
-    event.preventDefault(); // Prevent default link behavior
-    dropdownParent.classList.remove('active'); // Close dropdown
-    const helpText = `
-        ??????:
-        1. ??????????? ??? ???? ?? ??? ???
-           - ????????? ???? ?? ???? ???????? ?? ??????????? ?????? ?? ?????? ???
-           - ???? ?????? ???????? ??? ??????????? ?? ???? ?????
-           - ?? ???? ??????? ??? ??????
-        2. AI ???? ???? ?? ??? ???
-           - ????????? ???? ?? ???? ??? ?? ????? ??????? ??????? ???
-           - '???? ????' ??? ?? ????? ???? AI ?? ?????? ?????
-           - ??? ?????? ??? ???? ??, ?? ??? ?? ???????? ?????
-        3. ????? ???? ? ??? ???
-           - ????????? ???? ?? ???? ?????? ?? ??????? ???? ???
-           - ???? ???????? ?? ????? ???????? ?? ???? ?????
-    `;
-    displayChatMessage(helpText, 'ai');
-    speak("?????? ?????? ??? ??? ???");
-});
-
-
-// Initial welcome message and splash screen logic on load
-window.onload = function() {
-    const welcomeMessage = "???? ?? AI ?????? ??? ???? ?????? ??!";
-
-    splashScreen.style.display = 'flex';
-    loader.style.animation = 'spin 1s linear infinite, fadeInLoader 0.5s forwards 2.2s';
-
-    // Handle start button click
-    startButton.addEventListener('click', () => {
-        // Speak welcome message only after user interaction
-        const utterance = new SpeechSynthesisUtterance(welcomeMessage);
-        utterance.lang = 'hi-IN';
-        if (selectedMaleVoice) {
-            utterance.voice = selectedMaleVoice;
+    .main-content-area {
+        width: 100%; /* Full width for main content */
+        height: auto; /* Let content define height */
+    }
         }
-
-        utterance.onend = () => {
-            console.log("Welcome speech ended.");
-            transitionToMainInterface(); // Transition after speech ends
-        };
-        utterance.onerror = (event) => {
-            console.error('Welcome speech error:', event.error);
-            transitionToMainInterface(); // Transition even on speech error
-        };
-
-        speechSynthesis.speak(utterance);
-        startButton.disabled = true; // Disable button after click
-    });
-
-    // Fallback for start button if voices don't load quickly
-    setTimeout(() => {
-        if (!voicesLoaded) {
-            console.warn("Voices not loaded in time, enabling start button as fallback.");
-            startButton.disabled = false;
-        }
-    }, 4000); // Give some time for voices to load, then enable button
-};
+        
