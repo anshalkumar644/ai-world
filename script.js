@@ -1,20 +1,30 @@
+// script.js
 const userInput = document.getElementById('user-input');
 const sendButton = document.getElementById('send-button');
 const micButton = document.getElementById('mic-button');
-const chatDisplay = document.getElementById('chat-display');
-const startChatContainer = document.getElementById('start-chat-container');
-const startChatButton = document.getElementById('start-chat-button');
+const chatDisplay = document.getElementById('chat-display'); // Added chatDisplay element
 
 // Splash screen elements
 const splashScreen = document.getElementById('splash-screen');
 const mainInterface = document.getElementById('main-interface');
 const splashText = document.getElementById('splash-text');
 const loader = document.querySelector('.loader');
+const startButton = document.getElementById('start-button'); // New Start Button element
 
 // AI Face elements
 const aiFaceContainer = document.getElementById('ai-face-container');
 const aiFaceImage = document.getElementById('ai-face-image');
 const statusTextElement = document.getElementById('status-text');
+
+// Menu bar elements
+const dropbtn = document.querySelector('.dropbtn'); // Get the dropdown button
+const dropdownContent = document.querySelector('.dropdown-content'); // Get the dropdown content
+const dropdownParent = document.querySelector('.dropdown'); // Get the parent .dropdown div
+const homeLink = document.getElementById('home-link');
+const aboutLink = document.getElementById('about-link');
+const contactLink = document.getElementById('contact-link');
+const helpLink = document.getElementById('help-link');
+
 
 // Set the AI face image source to the new URL provided by the user
 aiFaceImage.src = 'https://i.ibb.co/wt1KjSF/1000097633-removebg-preview.png';
@@ -25,19 +35,16 @@ aiFaceImage.onerror = () => {
 
 
 let lastQuestionAsked = '';
-let chatHistory = []; // Stores objects like {role: 'user', text: 'hello'} or {role: 'ai', text: 'hi there'}
+let chatHistory = [];
 let selectedMaleVoice = null;
 let voicesLoaded = false; // Flag to check if voices are loaded
 
 // Speech Recognition setup
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition;
-let isListening = false; // Tracks if recognition is actively running
+let isListening = false;
 let finalTranscriptAccumulator = '';
 let silenceTimeout;
-
-// micState now simpler: 'off' or 'listening'
-let micState = 'off'; // 'off', 'listening'
 
 // Speech Synthesis (TTS) setup
 let currentUtterance = null;
@@ -48,51 +55,45 @@ let transitionInitiated = false;
 function selectMaleVoice() {
     const voices = speechSynthesis.getVoices();
     if (voices.length === 0) {
-        console.log("selectMaleVoice: No voices available yet. Waiting for 'voiceschanged' event.");
+        console.log("No voices available yet. Waiting for 'voiceschanged' event.");
         return; // Exit if no voices are loaded yet
     }
     voicesLoaded = true; // Set flag once voices are available
-    console.log("selectMaleVoice: Available voices:", voices.map(v => ({ name: v.name, lang: v.lang, default: v.default, localService: v.localService })));
+    console.log("Available voices:", voices.map(v => ({ name: v.name, lang: v.lang, default: v.default })));
 
     // Try to find a male voice for hi-IN
     selectedMaleVoice = voices.find(voice =>
-        voice.lang === 'hi-IN' && (voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('पुरुष'))
+        voice.lang === 'hi-IN' && (voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('?????'))
     );
 
     // Fallback to any hi-IN voice if no specific male voice is found
     if (!selectedMaleVoice) {
         selectedMaleVoice = voices.find(voice => voice.lang === 'hi-IN');
-        if (selectedMaleVoice) {
-            console.warn("selectMaleVoice: No specific male voice found for hi-IN, falling back to any hi-IN voice:", selectedMaleVoice.name);
-        }
     }
 
     // Fallback to any available male voice if no hi-IN voice is found
     if (!selectedMaleVoice) {
-        selectedMaleVoice = voices.find(voice => voice.default && (voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('पुरुष')));
-        if (selectedMaleVoice) {
-            console.warn("selectMaleVoice: No hi-IN voice found, falling back to default male voice:", selectedMaleVoice.name);
-        }
+        selectedMaleVoice = voices.find(voice => voice.default && (voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('?????')));
     }
 
     // Final fallback to default voice if no male voice is explicitly found
     if (!selectedMaleVoice) {
         selectedMaleVoice = voices.find(voice => voice.default);
-        if (selectedMaleVoice) {
-            console.warn("selectMaleVoice: No suitable male voice found for Hindi. Falling back to default system voice:", selectedMaleVoice.name);
-        } else {
-            console.error("selectMaleVoice: No voices available at all!");
-        }
     }
 
     if (selectedMaleVoice) {
-        console.log("selectMaleVoice: Selected AI Voice:", selectedMaleVoice.name, selectedMaleVoice.lang);
+        console.log("Selected AI Voice:", selectedMaleVoice.name, selectedMaleVoice.lang);
+    } else {
+        console.warn("No suitable male voice found for Hindi. Using default system voice.");
     }
+
+    // Enable start button once voices are loaded (or after a short delay)
+    startButton.disabled = false;
 }
 
 // Listen for voiceschanged event to ensure voices are loaded
 speechSynthesis.onvoiceschanged = selectMaleVoice;
-// Call immediately in case voices are already loaded (for initial load)
+// Call immediately in case voices are already loaded
 selectMaleVoice();
 
 
@@ -100,7 +101,7 @@ selectMaleVoice();
 const systemInstruction = {
     role: "user",
     parts: [{
-        text: "आप एक BPSC छात्र के लिए एक AI मित्र हैं। आपका नाम अंशल कुमार है। आपको छात्रों के प्रश्नों का उत्तर देना है। यदि छात्र 'मुझसे प्रश्न पूछो' कहे, तो आपको BPSC से संबंधित सामान्य ज्ञान के प्रश्न पूछने हैं। यदि छात्र जवाब दे, तो आपको तुरंत बताना है कि जवाब सही है या गलत, और गलत होने पर सही जवाब भी बताना है। कृपया अपने जवाबों में किसी भी प्रकार के बोल्डिंग (जैसे **शब्द**) का उपयोग न करें। यदि आप प्रश्न पूछते हैं, तो प्रश्न को स्पष्ट रूप से समाप्त करें और अगले प्रश्न के लिए तैयार रहें।"
+        text: "?? ?? BPSC ????? ?? ??? ?? AI ????? ???? ???? ??? ???? ????? ??? ???? ??????? ?? ???????? ?? ????? ???? ??? ??? ????? '????? ?????? ????' ???, ?? ???? BPSC ?? ??????? ??????? ????? ?? ?????? ????? ???? ??? ????? ???? ??, ?? ???? ????? ????? ?? ?? ???? ??? ?? ?? ???, ?? ??? ???? ?? ??? ???? ?? ????? ??? ????? ???? ?????? ??? ???? ?? ?????? ?? ???????? (???? **????**) ?? ????? ? ????? ??? ?? ?????? ????? ???, ?? ?????? ?? ?????? ??? ?? ?????? ???? ?? ???? ?????? ?? ??? ????? ?????"
     }]
 };
 
@@ -120,33 +121,16 @@ function transitionToMainInterface() {
     setTimeout(() => {
         splashScreen.style.display = 'none';
         mainInterface.classList.add('visible');
-        
-        // Show the start chat button overlay
-        startChatContainer.classList.add('visible');
-        statusTextElement.textContent = "चैट शुरू करने के लिए 'चैट शुरू करें' पर क्लिक करें।";
-
-        // Input and buttons remain disabled until chat starts
-        userInput.disabled = true;
-        sendButton.disabled = true;
-        micButton.disabled = true;
-
-    }, 1000); // Allow 1 second for splash screen fade-out
-}
-
-// Function to start continuous listening (no wake word)
-function startContinuousListening() {
-    if (SpeechRecognition && recognition) {
-        micState = 'listening';
-        recognition.start();
-        userInput.placeholder = "अपना संदेश यहाँ बोलें या टाइप करें...";
-        updateAiState('listening'); // AI shows listening state
-        finalTranscriptAccumulator = ''; // Clear transcript for new query
-        console.log("startContinuousListening: Mic is now listening continuously.");
-    } else {
-        userInput.placeholder = "अपना संदेश यहाँ लिखें...";
-        // No speak here, as it's handled by the initial greeting or error
-        console.warn("startContinuousListening: Speech Recognition not supported.");
-    }
+        userInput.disabled = false; // Ensure input is enabled when main interface becomes visible
+        sendButton.disabled = false; // Ensure send button is enabled
+        // Auto-start mic only if SpeechRecognition is supported
+        if (SpeechRecognition && recognition) {
+            recognition.start();
+        } else {
+            speak("????? ????, ???? ???????? ????? ?????????? ?? ?????? ???? ???? ??? ?? ???? ???? ?????? ?? ???? ????");
+        }
+        userInput.focus();
+    }, 1000);
 }
 
 
@@ -161,15 +145,15 @@ function updateAiState(state) {
             break;
         case 'listening':
             aiFaceContainer.classList.add('listening');
-            statusTextElement.textContent = 'सुन रहा हूँ...';
+            statusTextElement.textContent = '??? ??? ???...';
             break;
         case 'thinking':
             aiFaceContainer.classList.add('thinking');
-            statusTextElement.textContent = 'सोच रहा हूँ...';
+            statusTextElement.textContent = '??? ??? ???...';
             break;
         case 'speaking':
             aiFaceContainer.classList.add('speaking');
-            statusTextElement.textContent = 'बोल रहा हूँ...';
+            statusTextElement.textContent = '??? ??? ???...';
             break;
     }
 }
@@ -178,15 +162,14 @@ if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'hi-IN';
     recognition.interimResults = true;
-    recognition.continuous = true; // Keep listening continuously
+    recognition.continuous = true;
 
-    const SILENCE_TIMEOUT_MS = 5000; // Increased silence timeout to 5 seconds
+    const SILENCE_TIMEOUT_MS = 3000;
 
     function startSilenceTimeout() {
         clearTimeout(silenceTimeout);
         silenceTimeout = setTimeout(() => {
-            if (isListening) { // Only stop if recognition is active
-                console.log("Silence detected, stopping recognition.");
+            if (isListening) {
                 recognition.stop();
             }
         }, SILENCE_TIMEOUT_MS);
@@ -195,9 +178,12 @@ if (SpeechRecognition) {
     recognition.onstart = () => {
         isListening = true;
         micButton.classList.add('recording');
+        userInput.placeholder = "?????...";
         sendButton.disabled = true;
-        updateAiState('listening');
-        console.log("recognition.onstart: Recognition started. MicState:", micState);
+        userInput.disabled = false; // Ensure input is enabled when recognition starts
+        finalTranscriptAccumulator = '';
+        updateAiState('listening'); // AI shows listening state
+        startSilenceTimeout();
     };
 
     recognition.onresult = (event) => {
@@ -213,86 +199,68 @@ if (SpeechRecognition) {
             }
         }
 
-        const fullCurrentTranscript = finalTranscriptAccumulator + currentFinalTranscript + interimTranscript;
-        userInput.value = fullCurrentTranscript; // Always show current speech in input
-        console.log("recognition.onresult: Current Transcript:", fullCurrentTranscript, "MicState:", micState);
+        userInput.value = finalTranscriptAccumulator + interimTranscript;
 
-        // Reset silence timeout on any speech detected
-        if (fullCurrentTranscript.trim().length > 0) {
-            startSilenceTimeout();
-        }
-
-        // In continuous listening mode, accumulate final results for the query
         if (currentFinalTranscript) {
             finalTranscriptAccumulator += currentFinalTranscript;
-            console.log("recognition.onresult: Final Transcript Accumulated:", finalTranscriptAccumulator);
+            userInput.value = finalTranscriptAccumulator;
+            startSilenceTimeout();
         }
     };
 
     recognition.onerror = (event) => {
-        console.error('recognition.onerror: Speech recognition error:', event.error);
-        let errorMessage = "क्षमा करें, आवाज़ पहचानने में कोई समस्या हुई।";
+        console.error('Speech recognition error:', event.error);
+        let errorMessage = "????? ????, ????? ??????? ??? ??? ?????? ????";
         if (event.error === 'not-allowed') {
-            errorMessage = "माइक्रोफ़ोन का उपयोग करने की अनुमति नहीं दी गई। कृपया ब्राउज़र सेटिंग्स में अनुमति दें।";
+            errorMessage = "??????????? ?? ????? ???? ?? ?????? ???? ?? ??? ????? ???????? ???????? ??? ?????? ????";
         } else if (event.error === 'no-speech') {
-            errorMessage = "कोई आवाज़ नहीं सुनी गई।";
+            errorMessage = "??? ????? ???? ???? ??? ????? ??? ?? ?????? ?????";
         }
-        speak(errorMessage); // AI speaks error
+        if (mainInterface.classList.contains('visible')) {
+            speak(errorMessage);
+        }
 
         isListening = false;
         micButton.classList.remove('recording');
+        userInput.placeholder = "???? ????? ???? ????? ?? ??????????? ?? ?????...";
         sendButton.disabled = false;
+        userInput.disabled = false; // Ensure input is enabled on error
         clearTimeout(silenceTimeout);
         updateAiState('idle'); // Reset AI state
-        
-        // After error, try to restart continuous listening
-        startContinuousListening(); 
     };
 
     recognition.onend = () => {
-        console.log("recognition.onend: Recognition ended. Current micState:", micState, "isListening:", isListening);
         isListening = false;
         micButton.classList.remove('recording');
+        userInput.placeholder = "???? ????? ???? ????? ?? ??????????? ?? ?????...";
         sendButton.disabled = false;
+        userInput.disabled = false; // Ensure input is enabled when recognition ends
         clearTimeout(silenceTimeout);
-        
-        // If recognition ended and we were listening for a query
-        if (micState === 'listening') {
-            if (finalTranscriptAccumulator.trim() !== '') {
-                console.log("recognition.onend: Processing query:", finalTranscriptAccumulator);
-                userInput.value = finalTranscriptAccumulator; // Ensure final transcript is in input
-                sendMessage(); // Send the accumulated query
-            } else {
-                console.log("recognition.onend: No query detected, restarting continuous listening.");
-                userInput.value = ''; // Clear input
-                updateAiState('idle');
-                startContinuousListening(); // Always restart continuous listening
-            }
+
+        if (finalTranscriptAccumulator.trim() !== '') {
+            userInput.value = finalTranscriptAccumulator;
+            sendMessage();
+        } else {
+            userInput.value = '';
+            updateAiState('idle'); // Back to idle if nothing was said
         }
     };
 
     micButton.addEventListener('click', () => {
         if (isListening) {
-            console.log("Mic button clicked: Stopping recognition manually.");
             recognition.stop();
-            micState = 'off'; // Manual stop
-            updateAiState('idle');
-            userInput.placeholder = "अपना संदेश यहाँ लिखें या माइक्रोफ़ोन पर बोलें...";
-            sendButton.disabled = false;
         } else {
-            console.log("Mic button clicked: Starting continuous recognition.");
-            startContinuousListening();
+            recognition.start();
         }
     });
-    userInput.disabled = true;
-    sendButton.disabled = true;
-    micButton.disabled = true; // Initially disabled until chat starts
+    userInput.disabled = true; // Initial state: disabled
+    sendButton.disabled = true; // Initial state: disabled
+
 } else {
     micButton.style.display = 'none';
-    userInput.placeholder = "अपना संदेश यहाँ लिखें...";
-    userInput.disabled = false;
-    sendButton.disabled = false;
-    console.warn("Speech Recognition API not supported in this browser. Please use a compatible browser like Chrome.");
+    userInput.placeholder = "???? ????? ???? ?????...";
+    userInput.disabled = false; // Enabled if SR not supported
+    sendButton.disabled = false; // Enabled if SR not supported
 }
 
 // Function to display text in the chat box
@@ -301,124 +269,78 @@ function displayChatMessage(text, sender) {
     messageDiv.classList.add('chat-message', sender === 'ai' ? 'ai' : 'user');
     messageDiv.textContent = text;
     chatDisplay.appendChild(messageDiv);
-    // Scroll to the bottom
     chatDisplay.scrollTop = chatDisplay.scrollHeight;
 }
 
 
 // Function to speak text
 function speak(text) {
-    console.log("speak: Speak function called with text:", text);
-
-    // Display AI's speech in the chat box
-    displayChatMessage(text, 'ai');
-
     if (currentUtterance && speechSynthesis.speaking) {
-        console.log("speak: Cancelling previous utterance.");
         speechSynthesis.cancel();
     }
 
-    // Always re-select voice right before speaking to ensure it's up-to-date
-    selectMaleVoice(); 
-    
-    if (!selectedMaleVoice) {
-        console.error("speak: No voice selected even after re-attempt. Cannot speak.");
-        updateAiState('idle');
-        // If no voice, we still need to transition to the next state for mic
-        startContinuousListening(); // Always restart continuous listening
-        return; // Exit if no voice is available
-    }
-    
     currentUtterance = new SpeechSynthesisUtterance(text);
-    currentUtterance.lang = 'hi-IN'; 
-    currentUtterance.voice = selectedMaleVoice; // Set the selected male voice
-    
-    console.log("speak: Utterance properties: text='", text, "', lang='hi-IN', voice='", selectedMaleVoice.name, "'");
-
+    currentUtterance.lang = 'hi-IN'; // Still set language for better matching
+    if (selectedMaleVoice) {
+        currentUtterance.voice = selectedMaleVoice; // Set the selected male voice
+    }
     currentUtterance.onstart = () => {
-        console.log("speak: Speech started.");
         updateAiState('speaking'); // AI shows speaking state
     };
     currentUtterance.onend = () => {
-        console.log("speak: Speech ended. Current micState:", micState);
         updateAiState('idle'); // Back to idle after speaking
-        startContinuousListening(); // Always restart continuous listening after AI speaks
+        // After AI finishes speaking, restart recognition if supported
+        if (SpeechRecognition && recognition) {
+            recognition.start();
+        }
     };
     currentUtterance.onerror = (event) => {
-        console.error('speak: Speech synthesis error during speaking:', event.error, event);
+        console.error('Speech synthesis error:', event.error);
         updateAiState('idle'); // Back to idle on error
-        startContinuousListening(); // Even on error, try to restart continuous listening
+        // Even on error, try to restart recognition
+        if (SpeechRecognition && recognition) {
+            recognition.start();
+        }
     };
     speechSynthesis.speak(currentUtterance);
-    console.log("speak: speechSynthesis.speak() called.");
 }
 
 // Function to send message to AI
 async function sendMessage() {
     const userText = userInput.value.trim();
-    if (userText === '') {
-        console.log("sendMessage: Empty user text, restarting continuous listening.");
-        updateAiState('idle');
-        startContinuousListening();
-        return;
-    }
+    if (userText === '') return;
 
-    // Display user's message in the chat box
-    displayChatMessage(userText, 'user');
+    displayChatMessage(userText, 'user'); // Display user's message in chat
+    userInput.value = '';
 
-    userInput.value = ''; // Clear input field
-
-    // Stop recognition if it's currently active (it might be if user typed and pressed send)
+    // Stop recognition when user sends a message (either by typing or after voice input is processed)
     if (isListening) {
-        recognition.stop(); 
-        console.log("sendMessage: Recognition stopped (manual or due to query submission).");
+        recognition.stop(); // This will trigger recognition.onend, which then calls sendMessage
     }
-    micState = 'off'; // Temporarily off while thinking/speaking
     
     updateAiState('thinking'); // AI shows thinking state
-
-    let aiResponseText = "क्षमा करें, मुझे आपके अनुरोध को समझने में समस्या हुई।";
-
-    // Check for creator query - Hardcoded response
-    const lowerCaseUserText = userText.toLowerCase();
-    if (lowerCaseUserText.includes('किसने बनाया') ||
-        lowerCaseUserText.includes('कौन बनाया') ||
-        lowerCaseUserText.includes('तुम्हें किसने बनाया') ||
-        lowerCaseUserText.includes('तुम्हारा निर्माता कौन है') ||
-        lowerCaseUserText.includes('who made you') ||
-        lowerCaseUserText.includes('who created you')) {
-        aiResponseText = "मुझे अंशल कुमार द्वारा बनाया गया है।";
-        console.log("sendMessage: AI Creator Response (hardcoded):", aiResponseText);
-        speak(aiResponseText);
-        chatHistory.push({ role: "model", text: aiResponseText }); // Store in chat history
-        return; // Do not send to Gemini API
-    }
-
 
     let currentConversationParts = [];
 
     const isLikelyAnswer = lastQuestionAsked && userText.length < 50 &&
-                           !userText.toLowerCase().includes('प्रश्न पूछो') &&
-                           !userText.toLowerCase().includes('सवाल पूछo') &&
-                           !userText.toLowerCase().includes('मुझसे प्रश्न पूछo'); // Corrected typo
+                           !userText.toLowerCase().includes('?????? ????') &&
+                           !userText.toLowerCase().includes('???? ???o') &&
+                           !userText.toLowerCase().includes('????? ?????? ????');
 
     if (isLikelyAnswer) {
-        currentConversationParts.push({ text: `पिछला प्रश्न: "${lastQuestionAsked}"। छात्र का जवाब: "${userText}"। कृपया इस जवाब का मूल्यांकन करें और फिर एक नया प्रश्न पूछें या आगे की बातचीत जारी रखें।` });
+        currentConversationParts.push({ text: `????? ??????: "${lastQuestionAsked}"? ????? ?? ????: "${userText}"? ????? ?? ???? ?? ????????? ???? ?? ??? ?? ??? ?????? ????? ?? ??? ?? ?????? ???? ?????` });
     } else {
         currentConversationParts.push({ text: userText });
     }
 
-    chatHistory.push({ role: "user", text: userText }); // Store user's message in chat history
+    chatHistory.push({ role: "user", parts: currentConversationParts });
 
     const payload = {
-        contents: [systemInstruction, ...chatHistory.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }))]
+        contents: [systemInstruction, ...chatHistory]
     };
 
     try {
-        // IMPORTANT: If running this code outside of a Canvas environment (e.g., CodePen, local HTML file),
-        // you will need to replace the empty string below with your actual Gemini API Key.
-        // You can get one from Google AI Studio: https://aistudio.google.com/app/apikey
-        const apiKey = "AIzaSyB8QTDyvcCgjAykRJVwornqL9bg1AxI6vY"; // API Key added here
+        const apiKey = "AIzaSyC1N0DW220j1CR7sdBVocTTvCTKaFo_g7o"; // ???? API ????? ???? ????? ?? ??
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
         const response = await fetch(apiUrl, {
@@ -427,13 +349,9 @@ async function sendMessage() {
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-        }
-
         const result = await response.json();
-        
+        let aiResponseText = "????? ????, ???? ???? ?????? ?? ????? ??? ?????? ????";
+
         if (result.candidates && result.candidates.length > 0 &&
             result.candidates[0].content && result.candidates[0].content.parts &&
             result.candidates[0].content.parts.length > 0) {
@@ -441,95 +359,139 @@ async function sendMessage() {
             aiResponseText = aiResponseText.replace(/\*\*/g, '');
 
             if (aiResponseText.includes('?') &&
-                !aiResponseText.includes('सही जवाब!') &&
-                !aiResponseText.includes('गलत है')) {
+                !aiResponseText.includes('??? ????!') &&
+                !aiResponseText.includes('??? ??')) {
                 lastQuestionAsked = aiResponseText;
             } else {
                 lastQuestionAsked = '';
             }
 
-        } else {
-            // Handle cases where response structure is unexpected but no HTTP error
-            console.warn("sendMessage: Unexpected API response structure:", result);
-            aiResponseText = "क्षमा करें, AI से प्रतिक्रिया प्राप्त करने में समस्या हुई।";
         }
-        console.log("sendMessage: AI Response (Text to speak):", aiResponseText);
-        speak(aiResponseText); // This will also display in chat via displayChatMessage
-        chatHistory.push({ role: "model", text: aiResponseText }); // Store AI's message
+
+        displayChatMessage(aiResponseText, 'ai'); // Display AI's message in chat
+        speak(aiResponseText);
+        chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
 
     } catch (error) {
         console.error("Error fetching from Gemini API:", error);
-        const errorMessage = `क्षमा करें, AI से कनेक्ट करने में कोई समस्या आ गई है: ${error.message}। कृपया कुछ देर बाद पुनः प्रयास करें।`;
-        speak(errorMessage); // This will also display in chat via displayChatMessage
-        chatHistory.push({ role: "model", text: errorMessage }); // Store error message
+        const errorMessage = "????? ????, AI ?? ?????? ???? ??? ??? ?????? ? ?? ??? ????? ??? ??? ??? ???? ?????? ?????";
+        displayChatMessage(errorMessage, 'ai'); // Display error in chat
+        speak(errorMessage);
+        chatHistory.push({ role: "model", parts: [{ text: errorMessage }] });
     } finally {
-        // Mic state transition handled by speak().onend or onerror
+        // AI state will be set to 'idle' by speak().onend or onerror
+        // Mic will be restarted by speak().onend or onerror
     }
 }
 
 // Event listeners for text input
-sendButton.addEventListener('click', () => {
-    // If user types and clicks send, stop current recognition and send message
-    if (isListening) {
-        recognition.stop();
-        micState = 'off'; // Temporarily set off
-    }
-    sendMessage();
-});
-
+sendButton.addEventListener('click', sendMessage);
 userInput.addEventListener('keypress', function(e) {
     if (e.key === 'Enter' && !sendButton.disabled) {
-        // If user types and presses enter, stop current recognition and send message
-        if (isListening) {
-            recognition.stop();
-            micState = 'off'; // Temporarily set off
-        }
         sendMessage();
     }
 });
 
-// Event listener for the new "Start Chat" button
-startChatButton.addEventListener('click', () => {
-    startChatContainer.classList.remove('visible'); // Hide the overlay
-    userInput.disabled = false; // Enable input
-    sendButton.disabled = false; // Enable send button
-    micButton.disabled = false; // Enable mic button
+// Dropdown toggle logic
+dropbtn.addEventListener('click', function(event) {
+    event.stopPropagation(); // Prevent the click from bubbling up to the window
+    dropdownParent.classList.toggle('active'); // Toggle 'active' class on the parent dropdown
+});
 
-    const initialGreeting = "नमस्ते! मैं अंशल कुमार हूँ, आपका AI मित्र। मैं BPSC परीक्षा की तैयारी में आपकी मदद कर सकता हूँ।";
-    speak(initialGreeting); // Speak the initial greeting
-    // startContinuousListening will be called onend of this speech
+// Close the dropdown if the user clicks outside of it
+window.addEventListener('click', function(event) {
+    // Check if the clicked element is not the dropdown button itself
+    // AND if the clicked element is not inside the dropdown content
+    if (!event.target.matches('.dropbtn') && !event.target.closest('.dropdown-content')) {
+        if (dropdownParent.classList.contains('active')) {
+            dropdownParent.classList.remove('active');
+        }
+    }
+});
+
+// Dropdown menu item click handlers
+homeLink.addEventListener('click', (event) => {
+    event.preventDefault(); // Prevent default link behavior
+    dropdownParent.classList.remove('active'); // Close dropdown
+    displayChatMessage("?? ??? ??? ?? ????", 'ai');
+    speak("?? ??? ??? ?? ????");
+});
+
+aboutLink.addEventListener('click', (event) => {
+    event.preventDefault(); // Prevent default link behavior
+    dropdownParent.classList.remove('active'); // Close dropdown
+    const aboutText = "??????! ???? ??? ???? ????? ??? ???? ???? ????? ?????? ????? ??? ??? ??? ?? ??????? ??????? AI ??? ?? ??? ???? ????? ??? ?????? ?? ???? ???? ??? ?? ???? ???????? ???? ???, ?? ?? ???? ?? ??????? ??? ????? ?? ??? ?? ???? ???? ?? ???? ??? ???? ?????? ??? ???? ????";
+    displayChatMessage(aboutText, 'ai');
+    speak(aboutText);
+});
+
+contactLink.addEventListener('click', (event) => {
+    event.preventDefault(); // Prevent default link behavior
+    dropdownParent.classList.remove('active'); // Close dropdown
+    const email = 'kumaranshak481@gmail.com';
+    const subject = 'AI World App ?? ??????';
+    const body = '?????? ???? ?????,\n\n??? ???? AI World App ?? ???? ??? ???? ?????? ???? ????? ????\n\n???????,';
+    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank'); // Open email client in a new tab
+    displayChatMessage(`?? ???? ??? ???? ???: ${email}`, 'ai');
+});
+
+helpLink.addEventListener('click', (event) => {
+    event.preventDefault(); // Prevent default link behavior
+    dropdownParent.classList.remove('active'); // Close dropdown
+    const helpText = `
+        ??????:
+        1. ??????????? ??? ???? ?? ??? ???
+           - ????????? ???? ?? ???? ???????? ?? ??????????? ?????? ?? ?????? ???
+           - ???? ?????? ???????? ??? ??????????? ?? ???? ?????
+           - ?? ???? ??????? ??? ??????
+        2. AI ???? ???? ?? ??? ???
+           - ????????? ???? ?? ???? ??? ?? ????? ??????? ??????? ???
+           - '???? ????' ??? ?? ????? ???? AI ?? ?????? ?????
+           - ??? ?????? ??? ???? ??, ?? ??? ?? ???????? ?????
+        3. ????? ???? ? ??? ???
+           - ????????? ???? ?? ???? ?????? ?? ??????? ???? ???
+           - ???? ???????? ?? ????? ???????? ?? ???? ?????
+    `;
+    displayChatMessage(helpText, 'ai');
+    speak("?????? ?????? ??? ??? ???");
 });
 
 
 // Initial welcome message and splash screen logic on load
 window.onload = function() {
-    const welcomeMessage = "अंशल की AI दुनिया में आपका स्वागत है!"; 
+    const welcomeMessage = "???? ?? AI ?????? ??? ???? ?????? ??!";
 
     splashScreen.style.display = 'flex';
-    
-    // Wait for loader animation to complete (2.2s delay + 0.5s duration = 2.7s).
-    // Adding a small buffer, so 3 seconds total before starting welcome speech.
-    setTimeout(() => {
+    loader.style.animation = 'spin 1s linear infinite, fadeInLoader 0.5s forwards 2.2s';
+
+    // Handle start button click
+    startButton.addEventListener('click', () => {
+        // Speak welcome message only after user interaction
         const utterance = new SpeechSynthesisUtterance(welcomeMessage);
         utterance.lang = 'hi-IN';
-        selectMaleVoice(); // Ensure voice is selected for welcome message
-
         if (selectedMaleVoice) {
             utterance.voice = selectedMaleVoice;
-            console.log("onload: Welcome utterance voice set to:", selectedMaleVoice.name);
-        } else {
-            console.warn("onload: No specific male voice selected for welcome message, using default.");
         }
 
         utterance.onend = () => {
-            console.log("onload: Welcome speech ended.");
-            transitionToMainInterface(); // Transition after welcome speech ends
+            console.log("Welcome speech ended.");
+            transitionToMainInterface(); // Transition after speech ends
         };
         utterance.onerror = (event) => {
-            console.error('onload: Welcome speech error:', event.error);
+            console.error('Welcome speech error:', event.error);
             transitionToMainInterface(); // Transition even on speech error
         };
+
         speechSynthesis.speak(utterance);
-        console.log("onload: Attempting to speak welcome message.");
-    }, 3000); // Wait 3 seconds for splash text and loader animations to be visible
+        startButton.disabled = true; // Disable button after click
+    });
+
+    // Fallback for start button if voices don't load quickly
+    setTimeout(() => {
+        if (!voicesLoaded) {
+            console.warn("Voices not loaded in time, enabling start button as fallback.");
+            startButton.disabled = false;
+        }
+    }, 4000); // Give some time for voices to load, then enable button
 };

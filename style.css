@@ -1,3 +1,4 @@
+/* style.css */
 body {
     font-family: 'Inter', sans-serif;
     background: radial-gradient(circle at center, #1a202c 0%, #0f172a 100%); /* Dark, futuristic radial gradient */
@@ -75,16 +76,53 @@ body {
     100% { opacity: 1; }
 }
 
+/* Start Button on Splash Screen */
+#start-button {
+    background-color: #4f46e5; /* Indigo */
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 0.75rem;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.4);
+    opacity: 0; /* Initially hidden */
+    animation: fadeInButton 1s forwards;
+    animation-delay: 3s; /* Appear after text and loader */
+}
+
+#start-button:hover {
+    background-color: #6366f1;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(79, 70, 229, 0.6);
+}
+
+#start-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
+}
+
+@keyframes fadeInButton {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+
 /* Main Interface Container Styles */
 #main-interface {
     display: flex; /* Use flexbox for layout */
-    height: 100vh;
-    width: 100%;
+    flex-direction: column; /* Stack navbar, then chat/main content */
+    height: 100vh; /* Ensure main interface takes full viewport height */
+    width: 100%; /* Ensure main interface takes full viewport width */
     padding: 1rem;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
     position: relative; /* For absolute positioning of start-chat-container */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
 }
 
 #main-interface.visible {
@@ -92,21 +130,126 @@ body {
     visibility: visible;
 }
 
+/* Navbar Styles */
+.navbar {
+    width: 100%;
+    background-color: #1f2937; /* Darker background for navbar */
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    border: 1px solid #4f46e5;
+    margin-bottom: 1rem; /* Space below navbar */
+    flex-shrink: 0; /* Prevent navbar from shrinking */
+}
+
+.navbar-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+/* Dropdown Button */
+.dropbtn {
+    background-color: #4f46e5;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
+}
+
+.dropbtn:hover {
+    background-color: #6366f1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.5);
+}
+
+.dropbtn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+
+.dropdown-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: white;
+}
+
+/* Dropdown Content - ANIMATED */
+.dropdown {
+    position: relative; /* For positioning dropdown-content */
+}
+
+.dropdown-content {
+    position: absolute;
+    background-color: #1f2937;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 10; /* Ensure it's above other content */
+    border-radius: 0.75rem;
+    border: 1px solid #4f46e5;
+    top: calc(100% + 5px); /* Position below the button */
+    left: 0; /* Align with the button */
+    overflow: hidden; /* For smooth max-height animation */
+    max-height: 0; /* Initial state for animation */
+    opacity: 0; /* Initial state for fade */
+    transition: max-height 0.5s ease-out, opacity 0.5s ease-out; /* Animation properties */
+    pointer-events: none; /* Prevent interaction when hidden */
+}
+
+.dropdown-content a, .dropdown-content div {
+    color: #e2e8f0;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    transition: background-color 0.2s;
+    border-radius: 0.5rem;
+}
+
+.dropdown-content a:hover {
+    background-color: #4f46e5;
+}
+
+/* Show the dropdown menu on click - ANIMATED */
+.dropdown.active .dropdown-content {
+    max-height: 300px; /* Sufficiently large height to show all content */
+    opacity: 1;
+    pointer-events: auto; /* Allow interaction when visible */
+}
+
+/* Content area below navbar */
+.content-area-wrapper {
+    display: flex;
+    flex-grow: 1; /* Takes all available vertical space in #main-interface */
+    width: 100%; /* Takes full width of #main-interface */
+    flex-direction: row; /* Chat and main content side-by-side */
+    gap: 1rem; /* Add gap between chat and main content */
+}
+
 /* Chat Display Box Styles */
 #chat-display {
-    width: 30%; /* Take 30% of the width */
-    background-color: #1f2937; /* Darker background for chat */
+    width: 25%; /* Changed from 30% to 25% for 1/4 size */
+    background-color: #1f2937;
     border-radius: 0.75rem;
     padding: 1rem;
-    margin-right: 1rem; /* Space between chat and main content */
     display: flex;
     flex-direction: column;
     overflow-y: auto; /* Enable scrolling for chat history */
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     border: 1px solid #4f46e5;
-    max-height: 25vh; /* Reduced max height to 1/4 of viewport height */
-    transform: translateX(-100%); /* Start off-screen for slide-in */
-    transition: transform 0.5s ease-out; /* Smooth slide-in transition */
+    flex-grow: 1; /* Allow it to grow vertically within content-area-wrapper */
+    min-height: 200px; /* Ensure a minimum height for visibility */
+    height: 100%; /* Explicitly take 100% of parent's height */
 }
 
 #main-interface.visible #chat-display {
@@ -135,12 +278,14 @@ body {
 
 /* Main Content Area (AI Face and Input) */
 .main-content-area {
-    flex-grow: 1; /* Take remaining width */
+    flex-grow: 1; /* Take remaining width in content-area-wrapper */
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
     padding: 1rem;
+    min-width: 300px; /* Ensure a minimum width for visibility */
+    height: 100%; /* Explicitly take 100% of parent's height */
 }
 
 /* AI Face Container Styles */
@@ -260,65 +405,21 @@ body {
     box-shadow: 0 2px 5px rgba(239, 68, 68, 0.5);
 }
 
-/* Start Chat Button Container */
-#start-chat-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7); /* Semi-transparent overlay */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 500; /* Above main content but below splash */
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
-}
-
-#start-chat-container.visible {
-    opacity: 1;
-    visibility: visible;
-}
-
-#start-chat-button {
-    background-color: #4f46e5;
-    color: white;
-    padding: 1rem 2rem;
-    border-radius: 0.75rem;
-    border: none;
-    cursor: pointer;
-    font-size: 1.2rem;
-    font-weight: 600;
-    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.4);
-    transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
-}
-
-#start-chat-button:hover {
-    background-color: #6366f1;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(79, 70, 229, 0.6);
-}
-
-#start-chat-button:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
-}
-
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    #main-interface {
-        flex-direction: column; /* Stack chat and main content vertically on small screens */
+    .content-area-wrapper {
+        flex-direction: column; /* Stack chat and main content vertically */
+        gap: 0; /* Remove gap when stacked */
     }
     #chat-display {
         width: 100%; /* Full width on small screens */
         margin-right: 0;
         margin-bottom: 1rem; /* Space below chat box */
-        max-height: 25vh; /* Maintain 1/4 height on mobile too */
+        max-height: 25vh; /* Limit height on mobile */
+        height: auto; /* Let content define height up to max-height */
     }
     .main-content-area {
         width: 100%; /* Full width for main content */
+        height: auto; /* Let content define height */
     }
 }
